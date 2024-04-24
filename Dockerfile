@@ -1,21 +1,38 @@
 FROM ubuntu:22.04
 
+# Install necessary packages
 RUN apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get -y --no-install-recommends install -y cron curl \
-    # Remove package lists for smaller image sizes
-    && rm -rf /var/lib/apt/lists/* \
-    && which cron \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+       python3 \
+       python3-pip \
+       cron \
+       curl
+
+# Clean up to reduce container size
+RUN rm -rf /var/lib/apt/lists/* \
     && rm -rf /etc/cron.*/*
 
-COPY crontab /hello-cron
+# Install Python libraries
+RUN pip3 install requests psycopg2-binary pandas
+
+# Copy your Python script and other necessary files into the container
+COPY DEV_EOD_Stock_Email.ipynb /app/DEV_EOD_Stock_Email.ipynb
+COPY crontab /etc/cron.d/hello-cron
 COPY entrypoint.sh /entrypoint.sh
 
-RUN crontab hello-cron
-RUN chmod +x entrypoint.sh
+# Give execution rights on the cron job
+RUN chmod 0644 /etc/cron.d/hello-cron
 
+# Apply cron job
+RUN crontab /etc/cron.d/hello-cron
+
+# Give execution rights on the script
+RUN chmod +x /app/your_script.py
+RUN chmod +x /entrypoint.sh
+
+# Create the log file to be able to run tail
+RUN touch /var/log/cron.log
+
+# Run the command on container startup
 ENTRYPOINT ["/entrypoint.sh"]
-
-# https://manpages.ubuntu.com/manpages/trusty/man8/cron.8.html
-# -f | Stay in foreground mode, don't daemonize.
-# -L loglevel | Tell  cron  what to log about jobs (errors are logged regardless of this value) as the sum of the following values:
-CMD ["cron","-f", "-L", "2"]
+CMD ["cron", "-f", "-L", "2"]
